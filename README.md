@@ -33,6 +33,9 @@ To install the package you can either
 
 And you are all done. The qdl_klayout_extension should be available to you as a python module.
 
+# To-do
+Add more shape geometries (e.g. circle, ring, etc)
+
 # Dependencies
 The QDL KLayout Extension requires the following dependencies:
 
