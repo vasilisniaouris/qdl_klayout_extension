@@ -1,6 +1,10 @@
 # Description 
 The quantum defect laboratory (QDL) KLayout Extension provides additional functionalities complementary to the KLayout Python API.
 
+**Links**:
+- [Documentation (GitHub Pages)](https://vasilisniaouris.github.io/qdl_klayout_extension/)
+- [GitHub Repository](https://github.com/vasilisniaouris/qdl_klayout_extension)
+
 # Installation
 To install the package you can either
 1.  directly install it from GitHub you can use the following command:
@@ -33,8 +37,13 @@ To install the package you can either
 
 And you are all done. The qdl_klayout_extension should be available to you as a python module.
 
+# Examples
+Find some thoroughly commented examples of how to use this package [here](https://github.com/vasilisniaouris/qdl_klayout_extension/tree/master/qdl_klayout_extension/examples).
+These examples will show you how to make some simple shapes and patterns, how to retrieve some of their geometric 
+properties and how to plot them with matplotlib.
+
 # To-do
-Add more shape geometries (e.g. circle, ring, etc)
+Add more shape geometries (e.g. circle, ring, etc) to expand the functionality (and actual purpose) of this package.
 
 # Dependencies
 The QDL KLayout Extension requires the following dependencies:
