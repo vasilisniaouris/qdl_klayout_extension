@@ -12,33 +12,31 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
-import datetime
 import os
 import sys
+import tomli
 
-from configparser import ConfigParser
+from urllib.parse import quote
 
-# read package metadata from ../../setup.cfg
-_config = ConfigParser()
-_config.read('../../setup.cfg')
-_metadata = dict(_config.items('metadata'))
-_options = dict(_config.items('options'))
+
+with open("../../pyproject.toml", "rb") as f:
+    _config = tomli.load(f)
+
+_project_metadata = _config['project']
+_docs_metadata = _config['docs']
 
 # set paths
-_basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '', '../..'))
+_basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', _project_metadata['name']))
 sys.path.insert(0, _basedir)
-sys.path.insert(0, os.path.join(_basedir, _metadata['name']))
 
 # -- Project information -----------------------------------------------------
 
-project = _metadata['fancy_name']
-_year = str(datetime.datetime.today().year)
-_copyright_years = _year if _year == _metadata['first_released_year'] else f"{_metadata['first_released_year']} - {_year}"
-copyright = f"{_copyright_years}, {_metadata['author']}"
-author = _metadata['author']
+project = _docs_metadata["fancy_name"]
+copyright = _docs_metadata["copyright"]
+author = _project_metadata['authors'][0]["name"]
 
 # The full version, including alpha/beta/rc tags
-release = _metadata['version']
+release = _project_metadata['version']
 
 # -- General configuration ---------------------------------------------------
 
@@ -51,8 +49,9 @@ extensions = [
     # 'sphinx.ext.napoleon',  # autodoc for numpy anf google styles
     'autoapi.extension',  # pip install sphinx-autoapi easier than autodoc
     'myst_parser',  # for md support. pip install -U myst-parser
-    'sphinx.ext.viewcode',  # to see source code on the API reference
     'sphinx.ext.githubpages',  # to publish on GitHub Pages
+    'sphinx.ext.linkcode',  # to add source to github page!
+    'sphinx.ext.viewcode',  # to see source code on the API reference
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -71,7 +70,7 @@ exclude_patterns = []
 
 # autoapi extension settings
 autoapi_type = 'python'
-autoapi_dirs = ['../../qdl_klayout_extension']
+autoapi_dirs = [f"../../{_project_metadata['name']}"]
 autoapi_add_toctree_entry = True
 autoapi_python_class_content = 'both'  # both class doc and __init__ doc
 autoapi_member_order = 'groupwise'
@@ -151,7 +150,7 @@ html_show_sourcelink = False  # the documentation source files, not the code its
 # for furo  # https://pradyunsg.me/furo/customisation/
 html_theme_options = {
     "sidebar_hide_name": False,
-    "source_repository": _metadata['url'],
+    "source_repository": _project_metadata['urls']["repository"],
     "source_branch": "main",
     "source_directory": "docs/",
  }
@@ -165,3 +164,14 @@ html_theme_options.update({
 #     "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
 # }
 
+
+def linkcode_resolve(domain, info):
+    # https://stackoverflow.com/questions/48298560/how-to-add-link-to-source-code-in-sphinx
+    if domain != 'py' or not info['module']:
+        return None
+    filename = quote(info['module'].replace('.', '/'))
+    anchor = "#:~:text=" + quote(info["fullname"].split(".")[-1]) if "fullname" in info else ""
+
+    # github
+    result = f"{_project_metadata['urls']['repository']}/blob/master/%s.py%s" % (filename, anchor)
+    return result

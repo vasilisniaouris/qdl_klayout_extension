@@ -1,12 +1,17 @@
-# Version Control Log
+# Change Log
 
-- 04/20/2022; v0.1.0.1: Fixed build issues.
+- 4/21/2023; v0.1.0.2: Minor fixes and refactorings.
+  - Changed setup to use `pyproject.toml`, updated `setup.cfg` and `setup.py`.
+  - Updated conf.py to include source code links in the API reference (hopefully).
+  - Updated `__init__.py` files to import modules from the same directory (successfully this time).
+
+- 04/20/2023; v0.1.0.1: Fixed build issues.
   - Changed `setup.cfg` to follow the [setuptools](https://setuptools.pypa.io/en/latest/userguide/declarative`config.html)
     guide.
   - Simplified `setup.py`.
   - Updated `__init__.py` files to import modules from the same directory.
 
-- 04/20/2022; v0.1.0: Initial commit.
+- 04/20/2023; v0.1.0: Initial commit.
   - Defined basic `utils`, `constants` and `errors` used throughout the package.
   - Defined core class `Coordinates`, `Line`, and `CoordinatesList`.
   - Defined basing geometric shapes.

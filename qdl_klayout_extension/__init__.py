@@ -1,7 +1,7 @@
-import constants
-import core
-import errors
-import examples
-import transformations
-import utils
-import visualize
+from .constants import *
+from core import *
+from errors import *
+from examples import *
+from transformations import *
+from utils import *
+from visualize import *

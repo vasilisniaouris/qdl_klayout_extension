@@ -4,7 +4,6 @@ Primarily contains methods for basic geometric calculations, as well as unit con
 user and database units (See `constants` for more).
 """
 
-
 import numpy as np
 from pint import Quantity as Qty
 from typing import List, Sequence, Tuple

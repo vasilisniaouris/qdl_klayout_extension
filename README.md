@@ -63,8 +63,8 @@ Find a copy of the GNU General Public License [here](https://www.gnu.org/license
 # Copyright
 Copyright (C) 2023, Vasilis Niaouris
 
-# Version Control Log
-[Found here](./version_control_log.md).
+# Change Log
+[Found here](./CHANGELOG.md).
 
 # Credits
 The QDL KLayout Extension was created by Vasilis Niaouris under the Quantum Defect Laboratory at the University of Washington.  

@@ -1,0 +1,63 @@
+# More info on https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qdl_klayout_extension"
+version = "0.1.0.2"
+authors = [
+    {name = "Vasilis Niaouris", email = "vasilisniaouris@gmail.com"},
+]
+description = "Τhe quantum defect laboratory (QDL) KLayout extension provides additional functionalities complementary to the KLayout Python API"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["fabrication", "microfabrication", "nanofabrication", "design"]
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Framework :: Jupyter",
+    "Topic :: Utilities",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+dependencies = [
+    "klayout>=0.28.6",
+    "matplotlib>=3.7.1",
+    "multipledispatch>=0.6.0",
+    "numpy>=1.24.2",
+    "pint>=0.20.1",
+]
+# dynamic = ["version"]
+
+[project.urls]
+#homepage = "https://example.com"
+documentation = "https://vasilisniaouris.github.io/qdl_klayout_extension/"
+repository = "https://github.com/vasilisniaouris/qdl_klayout_extension/"
+changelog = "https://github.com/vasilisniaouris/qdl_klayout_extension/blob/master/CHANGELOG.md"
+
+# [project.optional-dependencies]
+# pdf = ["ReportLab>=1.2", "RXP"]
+# rest = ["docutils>=0.3", "pack ==1.1, ==1.3"]
+
+# [project.scripts]
+# my-script = "my_package.module:function"
+
+[tool.setuptools] # Setuptools specific
+platforms = ["Any"]
+include_package_data = true
+# More on datafiles: https://setuptools.pypa.io/en/latest/userguide/datafiles.html
+
+[tool.setuptools.packages.find]
+"*" = ["*.ipynb"]
+
+[docs]  # I implemented this so I can use them in the conf.py file that makes the docs with sphinx
+fancy_name = "QDL KLayout Extension"
+copyright = "2023, Vasilis Niaouris"
+
+# ... other project metadata fields as specified in:
+#     https://packaging.python.org/en/latest/specifications/declaring-project-metadata/

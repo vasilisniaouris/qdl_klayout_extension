@@ -1,4 +1,4 @@
-sphinx
+tomli
 readthedocs-sphinx-search
 sphinx-autoapi
 myst-parser
