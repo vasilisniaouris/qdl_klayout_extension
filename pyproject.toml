@@ -49,14 +49,14 @@ changelog = "https://github.com/vasilisniaouris/qdl_klayout_extension/blob/maste
 
 [tool.setuptools] # Setuptools specific
 platforms = ["Any"]
-include_package_data = true
+include-package-data = true
 # More on datafiles: https://setuptools.pypa.io/en/latest/userguide/datafiles.html
 
 [tool.setuptools.package-data]
 "*" = ["*.ipynb"]
 
 [docs]  # I implemented this so I can use them in the conf.py file that makes the docs with sphinx
-fancy_name = "QDL KLayout Extension"
+fancy-name = "QDL KLayout Extension"
 copyright = "2023, Vasilis Niaouris"
 
 # ... other project metadata fields as specified in:

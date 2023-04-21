@@ -31,7 +31,7 @@ sys.path.insert(0, _basedir)
 
 # -- Project information -----------------------------------------------------
 
-project = _docs_metadata["fancy_name"]
+project = _docs_metadata["fancy-name"]
 copyright = _docs_metadata["copyright"]
 author = _project_metadata['authors'][0]["name"]
 
