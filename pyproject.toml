@@ -52,7 +52,7 @@ platforms = ["Any"]
 include_package_data = true
 # More on datafiles: https://setuptools.pypa.io/en/latest/userguide/datafiles.html
 
-[tool.setuptools.packages.find]
+[tool.setuptools.package-data]
 "*" = ["*.ipynb"]
 
 [docs]  # I implemented this so I can use them in the conf.py file that makes the docs with sphinx
