@@ -94,6 +94,25 @@ def ulu2dbu(v: multi_num_ext) -> int | List[int]:
         return [int(round(element)) for element in rv.magnitude]
 
 
+def dbu2ulu(v: int | List[int]) -> int | List[int]:
+    """
+    Convert a scalar value or Quantity object or a list of those in database units to user-defined length units.
+
+    Parameters
+    ----------
+    v : int | List[int]
+        The scalar value or Quantity object or list of those to convert to user-defined length units.
+
+    Returns
+    -------
+    pint.Quantity | Sequence[pint.Quantity]
+        The converted quantity in user-defined length units.
+    """
+
+    qty = Qty(v, 'um') * DBU_UM
+    return qty.to(user_units['length'])
+
+
 def uau2rad(v: multi_num_ext) -> num | Sequence[num]:
     """
     Convert a scalar value or Quantity object or a list of those in user-defined angle units to radians.
@@ -292,4 +311,61 @@ def line_intersection(c11: Tuple[num_ext, num_ext], c12: Tuple[num_ext, num_ext]
 
     return None, None
 
+
+def line_segment_length(c1: Tuple[num_ext, num_ext], c2: Tuple[num_ext, num_ext]):
+    """
+    Calculate the length of a line segment.
+
+    Parameters
+    ----------
+    c1 : Tuple[int | float | Quantity, int | float | Quantity]
+        The first point of the line segment.
+    c2 : Tuple[int | float | Quantity, int | float | Quantity]
+        The second point of the line segment.
+
+    Returns
+    -------
+    float | Quantity
+        The length of the line segment.
+    """
+    x1, y1 = c1
+    x2, y2 = c2
+
+    return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+
+def point_line_segment_distance(c_point: Tuple[num_ext, num_ext], c1_line: Tuple[num_ext, num_ext],
+                                c2_line: Tuple[num_ext, num_ext]):
+    """
+    Calculate the distance from a point to a line segment.
+
+    More info in https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
+
+    Parameters
+    ----------
+    c_point : Tuple[int | float | Quantity, int | float | Quantity]
+        The point of interest
+    c1_line : Tuple[int | float | Quantity, int | float | Quantity]
+        The first point of the line segment.
+    c2_line : Tuple[int | float | Quantity, int | float | Quantity]
+        The second point of the line segment.
+
+    Returns
+    -------
+    float | Quantity
+        The distance from the point to the line segment.
+
+    """
+    x0, y0 = c_point
+    x1, y1 = c1_line
+    x2, y2 = c2_line
+
+    x21 = x2 - x1
+    y21 = y2 - y1
+    x10 = x1 - x0
+    y10 = y1 - y0
+
+    line_length = line_segment_length(c1_line, c2_line)
+    numerator = np.abs(x21 * y10 - x10 * y21)
+    return numerator / line_length
 

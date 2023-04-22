@@ -1,5 +1,11 @@
 # Change Log
 
+- 4/22/203; v0.1.1.0: Created new shapes.
+  - Added a `Shape` superclass for the existing `SimplePolygon` class and the new `SimplePath` class.
+  - Added new geometries (circles, rings, arcs).
+  - Moved line segment length calculation for `Line` within the class for consistency.
+  - Added `distance_to_point()` method in `Line` to accommodate SimplePath.contains_point().
+
 - 4/21/2023; v0.1.0.2: Minor fixes and refactorings.
   - Changed setup to use `pyproject.toml`, updated `setup.cfg` and `setup.py`.
   - Updated conf.py to include source code links in the API reference (hopefully).

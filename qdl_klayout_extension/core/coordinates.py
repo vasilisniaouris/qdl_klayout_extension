@@ -13,7 +13,8 @@ from qdl_klayout_extension.constants import num_ext, multi_num_ext, num
 from qdl_klayout_extension.errors import XYLengthError, OperationTypeError
 from qdl_klayout_extension.transformations import translate, rotate, transform, stretch, squeeze, reflect, reflect_x, \
     reflect_y
-from qdl_klayout_extension.utils import v_in_uu, qty_in_uu, ulu2dbu, find_centroid, sort_rotationally, line_intersection
+from qdl_klayout_extension.utils import v_in_uu, qty_in_uu, ulu2dbu, find_centroid, sort_rotationally, \
+    line_intersection, line_segment_length, point_line_segment_distance
 
 
 def get_coords(coords: Tuple | "Coordinates" | Sequence | "CoordinatesList") -> Tuple[Qty | None, Qty | None]:
@@ -386,6 +387,7 @@ class Line:
         x2, y2 = self.point_2.x_uu, self.point_2.y_uu
         self._slope = (y2 - y1) / (x2 - x1)
         self._intercept = y1 - self._slope * x1
+        self._length = line_segment_length((x1, y1), (x2, y2))
 
     @property
     def point_1(self):
@@ -406,6 +408,11 @@ class Line:
     def intercept(self):
         """ The intercept of the line. """
         return self._intercept
+
+    @property
+    def length(self):
+        """ The length of the line (distance between the two points). """
+        return self._length
 
     def intersection(self, other: "Line"):
         """
@@ -428,6 +435,9 @@ class Line:
             return Coordinates(x, y)
 
         return None
+
+    def distance_from_point(self, point: Coordinates | Tuple[num_ext | num_ext]):
+        point_line_segment_distance()
 
     def __repr__(self):
         return f"Line({self.point_1}, {self.point_2})"
@@ -714,13 +724,9 @@ class CoordinatesList:
         pint.Quantity[np.ndarray]
             An array containing the lengths of the edges.
         """
-        if not self._is_sorted:
-            warnings.warn('Edge lengths may not be correct since the coordinate list is not sorted.')
+        lines = self.get_edge_lines()
 
-        x = list(self._x_uu) + [self._x_uu[0]]
-        y = list(self._y_uu) + [self._y_uu[0]]
-
-        lengths = Qty.from_list([np.sqrt((x[i + 1] - x[i]) ** 2 + (y[i + 1] - y[i]) ** 2) for i in range(len(self))])
+        lengths = Qty.from_list([line.length for line in lines])
         return lengths
 
     def get_edge_angles(self) -> Qty:

@@ -12,9 +12,9 @@ from matplotlib import path as mpl_path
 
 from qdl_klayout_extension.constants import num_ext
 from qdl_klayout_extension.core.coordinates import CoordinatesList, Coordinates, Line
-from qdl_klayout_extension.core.geometries import rectangle_coords
+from qdl_klayout_extension.core.geometries import rectangle_coords, circle_coords, arc_coords
 from qdl_klayout_extension.errors import ShapePointCountError, ShapePointAngleError, ShapeEdgeLengthError
-from qdl_klayout_extension.utils import qty_in_uu, v_in_uu
+from qdl_klayout_extension.utils import qty_in_uu, v_in_uu, ulu2dbu, dbu2ulu
 
 _deviation_precision = 0.01
 
@@ -41,36 +41,37 @@ def _deviation_is_above_precision_limit(value1: num_ext, value2: num_ext):
     return diff > allowed_deviation
 
 
-class SimplePolygon:
+class Shape:
     """
-    The SimplePolygon class is a class for representing and manipulating simple polygons in two-dimensional space.
-    It defines a polygon as a list of coordinates that represent the vertices of the polygon in order.
-    It provides various definitions of various geometric properties of the polygon, such as edge centers, edge angles to
-    the y-axis, edge lines and adjacent edge angles.
-    Additionally, it provides methods for checking whether a point or set of points are inside or outside the polygon.
+    Base class for all KLayout shapes, such as KLayout.SimplePolygon and KLayout.Path.
+    It is used for representing and manipulating shapes in two-dimensional space.
 
-    The SimplePolygon class serves as a foundation for more specialized polygon classes, such as the SimpleRectangle
-    and SimpleCross classes, which inherit from it and provide additional functionality specific to those shapes.
+    It is defined by a list of coordinates.
+
+    It provides definitions of various geometric properties of the shape coordinates, such as edge centers, edge angles
+    to the y-axis, edge lines and adjacent edge angles.
+    Additionally, it provides the contain_point method, great for checking whether a point or set of points are inside
+    or outside the shape. This method needs to be implemented by the subclass.
     """
+
     _size: int | None = None
 
     def __init__(self, coords: CoordinatesList):
         """
-        Parameters:
-        -----------
-        coords: CoordinatesList
-            A list of coordinates representing the vertices of the rectangle.
+        Parameters
+        ----------
+        coords : CoordinatesList
+            List of coordinates.
         """
 
-        if not coords.is_sorted:
-            coords.sort_clockwise()
+        # if not coords.is_sorted:  # Might not work well with all types of shapes.
+        #     coords.sort_clockwise()
 
         self._coords: CoordinatesList = coords
         self.__post_init__()
         self._check_all()
 
     def __post_init__(self):
-        self._klayout_simple_polygon: pya.SimplePolygon = pya.SimplePolygon(self._coords.klayout_points)
         self._centroid: Coordinates = self._coords.get_centroid()
         self._ref_point: Coordinates = self._coords.ref_point
 
@@ -108,9 +109,9 @@ class SimplePolygon:
         return self._coords
 
     @property
-    def klayout_simple_polygon(self) -> pya.SimplePolygon:
-        """ KLayout SimplePolygon object representing the polygon vertices. """
-        return self._klayout_simple_polygon
+    def klayout_object(self):
+        """ KLayout object representing the shape. Defaults to None and must be redefined when Shape is subclassed. """
+        return None
 
     @property
     def centroid(self) -> Coordinates:
@@ -149,6 +150,65 @@ class SimplePolygon:
 
     def contains_point(self, point: Coordinates):
         """
+        Check if a point is contained within the shape. Must be overloaded when subclassed.
+
+        Parameters
+        ----------
+        point : Coordinates
+            The point to check if it's contained in the polygon.
+
+        Returns
+        -------
+        bool
+            True if the point is contained within the shape, False otherwise.
+        """
+        raise NotImplementedError('contains_point must be defined by the subclass.')
+
+    def contains_points(self, points: CoordinatesList | Sequence[Coordinates]):
+        """
+        Check if a list of points are contained within the shape.
+
+        Parameters
+        ----------
+        points : CoordinatesList | Sequence[Coordinates]
+            The list of points to check if they are contained in the polygon.
+
+        Returns
+        -------
+        List[bool]
+            A list of booleans indicating if each point is contained within the shape.
+        """
+        return [self.contains_point(point) for point in points]
+
+
+class SimplePolygon(Shape):
+    """
+    The SimplePolygon class is a subclass of the Shape class.
+    It is used for representing and manipulating simple polygons in two-dimensional space.
+    It defines a polygon as a list of coordinates that represent the vertices of the polygon in order.
+    The polygon coordinates must be sorted appropriate. Most of the time, using the sort_clockwise() method of the
+    coord class with a properly specified ref_point will ensure that the polygon will be visualized properly.
+
+    The SimplePolygon class serves as a foundation for more specialized polygon classes, such as the SimpleRectangle
+    and SimpleCross classes, which inherit from it and provide additional functionality specific to those shapes.
+    """
+
+    def __post_init__(self):
+        self._klayout_simple_polygon: pya.SimplePolygon = pya.SimplePolygon(self._coords.klayout_points)
+        super().__post_init__()
+
+    @property
+    def klayout_object(self) -> pya.SimplePolygon:
+        """ KLayout SimplePolygon object representing the polygon vertices. """
+        return self._klayout_simple_polygon
+
+    @property
+    def klayout_simple_polygon(self) -> pya.SimplePolygon:
+        """ KLayout SimplePolygon object representing the polygon vertices. """
+        return self._klayout_simple_polygon
+
+    def contains_point(self, point: Coordinates):
+        """
         Check if a point is contained within the polygon.
 
         Parameters
@@ -165,22 +225,6 @@ class SimplePolygon:
         polygon_path = mpl_path.Path(polygon_coordinates)
 
         return polygon_path.contains_point((point.x_uu.m, point.y_uu.m))
-
-    def contains_points(self, points: CoordinatesList | Sequence[Coordinates]):
-        """
-        Check if a list of points are contained within the polygon.
-
-        Parameters
-        ----------
-        points : CoordinatesList | Sequence[Coordinates]
-            The list of points to check if they are contained in the polygon.
-
-        Returns
-        -------
-        List[bool]
-            A list of booleans indicating if each point is contained within the polygon.
-        """
-        return [self.contains_point(point) for point in points]
 
 
 def coords_for_simple_polygon_merge(polygon_1: SimplePolygon, polygon_2: SimplePolygon,
@@ -234,15 +278,6 @@ class SimpleRectangle(SimplePolygon):
     constructor from_edge() defines the rectangle location in 2D space by one of the four edge's coordinates.
     """
     _size = 4
-
-    def __init__(self, coords: CoordinatesList):
-        """
-        Parameters:
-        -----------
-        coords: CoordinatesList
-            A list of coordinates representing the vertices of the rectangle.
-        """
-        super().__init__(coords)
 
     def _check_coord_size(self):
         """
@@ -370,15 +405,6 @@ class SimpleCross(SimplePolygon):
     The reference point of this shape is the interaction of the two overlapping rectangles.
     """
 
-    def __init__(self, coords: CoordinatesList):
-        """
-        Parameters:
-        -----------
-        coords: CoordinatesList
-            A list of coordinates representing the vertices of the rectangle.
-        """
-        super().__init__(coords)
-
     @classmethod
     def from_rectangles(cls, width: num_ext, length_1: num_ext, length_2: num_ext,
                         angle: num_ext = 0, ref_point: Coordinates | Tuple[num_ext, num_ext] = Coordinates(0, 0),
@@ -435,3 +461,232 @@ class SimpleCross(SimplePolygon):
         cross_coords = cross_coords.get_translated(ref_point)
 
         return cls(cross_coords)
+
+
+class SimpleCircle(SimplePolygon):
+    """
+    The SimpleCircle class is a subclass of the SimplePolygon class that defines a simple circle.
+    The from_center() method constructs a SimpleCircle instance from the parameters that define the circle.
+    The reference point of this shape is the center of the circle.
+    """
+
+    @classmethod
+    def from_center(cls, radius: num_ext, num_points: int = 100,
+                    center: Coordinates | Tuple[num_ext, num_ext] = Coordinates(0, 0)):
+        """
+        Constructs a SimpleCircle instance from the radius of the circle and the number of points.
+
+        Parameters:
+        -----------
+        radius: int | float | pint.Quantity
+            The radius of the circle.
+        num_points: int
+            The number of points used to construct the circle. Default is 100.
+        center: Coordinates or Tuple[int | float | pint.Quantity, int | float | pint.Quantity], optional
+            The center of the circle. Default is Coordinates(0, 0).
+
+        Returns:
+        --------
+        SimpleCircle
+            A SimpleCircle object constructed from the provided parameters.
+        """
+        if isinstance(center, Tuple):
+            center = Coordinates(*center)
+
+        coords = circle_coords(radius, num_points)
+        coords = coords.get_translated(center)
+
+        return cls(coords)
+
+
+class SimplePath(Shape):
+    """
+    The SimplePath class is a subclass of the Shape class that defines a path with a given width.
+    It is used for representing and manipulating paths in two-dimensional space.
+    It defines a path as a list of coordinates that represent the vertices of the path in order.
+    The path coordinates must be sorted appropriate. Most of the time, using the sort_clockwise() method of the
+    coord class with a properly specified ref_point will ensure that the path will be visualized properly.
+
+    The SimplePath class serves as a foundation for more specialized polygon classes, such as the RingPath and ArcPath
+    classes, which inherit from it and provide additional functionality specific to those shapes.
+    """
+
+    def __init__(self, coords: CoordinatesList, width: num_ext, initial_end_cap: num_ext = 0,
+                 final_end_cap: num_ext = 0, rounded_end_caps: bool = False):
+        """
+        Parameters:
+        -----------
+        coords: CoordinatesList
+            A list of coordinates representing the vertices of the path.
+        width: int | float | pint.Quantity
+            The width of the path.
+        initial_end_cap: int | float | pint.Quantity, optional
+            The extent of the initial end cap. Default is 0.
+        final_end_cap: int | float | pint.Quantity, optional
+            The extent of the final end cap. Default is 0.
+        rounded_end_caps: bool, optional
+            The boolean value that indicates whether the end caps are rounded or not. Default is False.
+        """
+
+        self._width: Qty = qty_in_uu(width) if isinstance(width, Qty) else v_in_uu(width)
+        self._rounded_end_caps: bool = rounded_end_caps
+        if self._rounded_end_caps:
+            end_cap_width = dbu2ulu(ulu2dbu(self._width / 2))
+            # The caps must be half the width, so, to avoid digitization issues, we slightly change the width definition
+            self._width = end_cap_width * 2
+            self._initial_end_cap = end_cap_width
+            self._final_end_cap = end_cap_width
+        else:
+            self._initial_end_cap = initial_end_cap
+            self._final_end_cap = final_end_cap
+
+        super().__init__(coords)
+
+    def __post_init__(self):
+        self._klayout_path: pya.Path = pya.Path(self.coords.klayout_points, self.width, self.initial_end_cap,
+                                                self.final_end_cap, self.rounded_end_cap)
+        super().__post_init__()
+
+    @property
+    def width(self) -> Qty:
+        """ The width of the path. """
+        return self._width
+
+    @property
+    def initial_end_cap(self) -> Qty:
+        """ The extent of the initial end cap. """
+        return self._initial_end_cap
+
+    @property
+    def final_end_cap(self) -> Qty:
+        """ The extent of the final end cap. """
+        return self._final_end_cap
+
+    @property
+    def rounded_end_cap(self) -> bool:
+        """ The boolean value that indicates whether the end caps are rounded or not. """
+        return self._rounded_end_caps
+
+    @property
+    def klayout_object(self) -> pya.Path:
+        """ KLayout Path object representing the path vertices. """
+        return self._klayout_path
+
+    @property
+    def klayout_path(self) -> pya.Path:
+        """ KLayout Path object representing the path vertices. """
+        return self._klayout_path
+
+    def contains_point(self, point: Coordinates):
+        """
+        Check if a point is contained within the path.
+
+        Parameters
+        ----------
+        point : Coordinates
+            The point to check if it's contained in the path.
+
+        Returns
+        -------
+        bool
+            True if the point is contained within the path, False otherwise.
+
+        Notes
+        -----
+        In this method, we first find the distance of the point from all line segments in the path.
+        If one of these distances is less than the half-width, then the point may be contained in the shape.
+
+        """
+        edge_lines = self.edge_lines
+        line_point_distances = Qty.from_list([line.distance_from_point(point) for line in edge_lines])
+
+        if not any(line_point_distances <= self.width / 2):
+            return False
+
+        # TODO: check if the point is within the edge_line limits.
+        # TODO: figure out corner effects -> Probably have to define a get_polygon_coords() method, where you first
+        #  find the extended line segments by changing the line intercept, and then taking the infinite line
+        #  intersections between lines as the new points.
+        return True
+
+
+class RingPath(SimplePath):
+    """
+    The RingPath class is a subclass of the SimplePath class that defines a ring with a given width.
+    The from_center() method constructs a SimplePath instance from the parameters that define the circle.
+    The reference point of this shape is the center of the circle.
+    """
+
+    @classmethod
+    def from_center(cls, radius: num_ext, width: num_ext, num_points: int = 100,
+                    center: Coordinates | Tuple[num_ext, num_ext] = Coordinates(0, 0)):
+        """
+        Constructs a RingPath instance from the radius of the ring and the number of points.
+
+        Parameters:
+        -----------
+        radius: int | float | pint.Quantity
+            The radius of the ring.
+        width: int | float | pint.Quantity
+            The width of the ring.
+        num_points: int
+            The number of points used to construct the ring. Default is 100.
+        center: Coordinates or Tuple[int | float | pint.Quantity, int | float | pint.Quantity], optional
+            The center of the ring. Default is Coordinates(0, 0).
+
+        Returns:
+        --------
+        RingPath
+            A RingPath object constructed from the provided parameters.
+        """
+        if isinstance(center, Tuple):
+            center = Coordinates(*center)
+
+        coords = circle_coords(radius, num_points)
+        coords = coords.get_translated(center)
+
+        return cls(coords, width)
+
+
+class ArcPath(SimplePath):
+    """
+    The ArcPath class is a subclass of the SimplePath class that defines an arc with a given width.
+    The from_center() method constructs a SimplePath instance from the parameters that define the arc.
+    The reference point of this shape is the center of the arc.
+    """
+
+    @classmethod
+    def from_center(cls, radius: num_ext, width: num_ext, num_points: int = 100,
+                    center: Coordinates | Tuple[num_ext, num_ext] = Coordinates(0, 0),
+                    start_angle: num_ext = 0, end_angle: num_ext = 360):
+        """
+        Constructs an ArcPath instance from the radius of the arc and the number of points.
+
+        Parameters:
+        -----------
+        radius: int | float | pint.Quantity
+            The radius of the arc.
+        width: int | float | pint.Quantity
+            The width of the arc.
+        num_points: int
+            The number of points used to construct the arc. Default is 100.
+        center: Coordinates or Tuple[int | float | pint.Quantity, int | float | pint.Quantity], optional
+            The center of the arc. Default is Coordinates(0, 0).
+        start_angle: int | float | pint.Quantity, optional
+            The starting angle of the arc. Default is 0.
+        end_angle: int | float | pint.Quantity, optional
+            The ending angle of the arc. Default is 360.
+
+        Returns:
+        --------
+        ArcPath
+            An ArcPath object constructed from the provided parameters.
+        """
+        if isinstance(center, Tuple):
+            center = Coordinates(*center)
+
+        coords = arc_coords(radius, start_angle, end_angle, num_points)
+        coords = coords.get_translated(center)
+
+        return cls(coords, width)
+

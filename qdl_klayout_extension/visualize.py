@@ -115,3 +115,5 @@ def plot_pattern(pattern_array: CoordinatesList, coords: CoordinatesList, edge_k
     for pa_coord in pattern_array:
         trans_coords = coords.get_translated(pa_coord)
         plot_coords(trans_coords, edge_kwargs, fill_kwargs, units)
+
+# TODO: define new functions to plot shapes (simple polyogns and paths) and patterns rather than just coords.
