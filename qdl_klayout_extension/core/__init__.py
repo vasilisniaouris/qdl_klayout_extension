@@ -4,9 +4,8 @@ Such functionalities range from creating Coordinates, to creating Layouts with c
 in repeated patterns. It serves to ease and automate the creation of complex shapes and patterns.
 """
 
-from coordinates import *
-from geometries import *
-from layout import *
-from patterns import *
-from shapes import *
-
+from . import coordinates
+from . import geometries
+from . import layout
+from . import patterns
+from . import shapes

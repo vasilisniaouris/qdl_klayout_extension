@@ -7,10 +7,10 @@ from types import MethodType
 import pya
 
 from qdl_klayout_extension.constants import DBU_UM
-from qdl_klayout_extension.core.shapes import SimplePolygon
+from qdl_klayout_extension.core.shapes import Shape
 
 
-def easy_insert(cell: pya.Cell, layer: int, elements: Sequence[SimplePolygon | pya.SimplePolygon]):
+def easy_insert(cell: pya.Cell, layer: int, elements: Sequence[Shape | pya.SimplePolygon | pya.Path]):
     """
     Insert the given elements into the specified layer of the cell.
 
@@ -20,12 +20,12 @@ def easy_insert(cell: pya.Cell, layer: int, elements: Sequence[SimplePolygon | p
         The cell to insert the elements into.
     layer : int
         The layer to insert the elements into.
-    elements : Sequence[SimplePolygon | pya.SimplePolygon]
+    elements : Sequence[Shape | pya.SimplePolygon | pya.Path]
         The elements to insert into the cell.
     """
     for element in elements:
-        if isinstance(element, SimplePolygon):
-            element = element.klayout_simple_polygon
+        if isinstance(element, Shape):
+            element = element.klayout_object
         cell.shapes(layer).insert(element)
 
 

@@ -225,8 +225,10 @@ def cartesian_to_polar_from_reference_point(x: Sequence, y: Sequence,
     return radius, angle
 
 
+# TODO: Use start_angle to define rotational sorting. Then define it in coordinates class. Then use it for circles.
 def sort_rotationally(x: Sequence[num_ext] | Qty, y: Sequence[num_ext] | Qty,
-                      counterclockwise=False, xref: num_ext | None = None, yref: num_ext | None = None) -> \
+                      counterclockwise=False, xref: num_ext | None = None, yref: num_ext | None = None,
+                      start_angle: num_ext = 0) -> \
         Tuple[Sequence[num_ext], Sequence[num_ext]]:
     """
     Sorts coordinates `x` and `y` in a counterclockwise or clockwise direction about their centroid.

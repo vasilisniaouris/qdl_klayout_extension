@@ -3,7 +3,7 @@ This module contains classes that help create pattern arrays easily.
 """
 
 
-from typing import Tuple
+from typing import Tuple, List
 
 import pya
 
@@ -57,15 +57,27 @@ class Pattern:
 
         self._global_displacement_trans = pya.Trans(self.global_displacement.x_dbu, self.global_displacement.y_dbu)
 
-    def get_pattern_array(self) -> CoordinatesList:
+    def get_pattern_array(self) -> List[List[Coordinates]]:
+        """
+        The coordinates array of the pattern.
+
+        Returns
+        -------
+        List[List[Coordinates]]
+            A list of lists of Coordinates objects. Each element holds a column and each column holds a
+            Coordinates object.
+        """
+
         coords = []
         for i in range(self.n_x):
+            column = []
             for j in range(self.n_y):
                 x = self.separation_vx.x_uu * i + self.separation_vy.x_uu * j + self.global_displacement.x_uu
                 y = self.separation_vx.y_uu * i + self.separation_vy.y_uu * j + self.global_displacement.y_uu
-                coords.append(Coordinates(x, y))
+                column.append(Coordinates(x, y))
+            coords.append(column)
 
-        return CoordinatesList(coords)
+        return coords
 
     @property
     def dist_x(self) -> num_ext:
@@ -139,7 +151,7 @@ class Pattern:
         return pya.CellInstArray(cell.cell_index(), self.global_displacement_trans, self.klayout_vx,
                                  self.klayout_vy, self.n_x, self.n_y)
 
-
-
-
+    def __repr__(self):
+        return f'Pattern(Δx={self.dist_x}, Δy={self.dist_y}, n_x={self.n_x}, n_y={self.n_y}, ' \
+               f'angle={self.angle}, global_displacement={self.global_displacement})'
 

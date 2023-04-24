@@ -7,10 +7,11 @@ from typing import Tuple, Sequence, List
 
 import numpy as np
 import pya
+from multipledispatch import dispatch
 from pint import Quantity as Qty
 from matplotlib import path as mpl_path
 
-from qdl_klayout_extension.constants import num_ext
+from qdl_klayout_extension.constants import num_ext, multi_num_ext, num
 from qdl_klayout_extension.core.coordinates import CoordinatesList, Coordinates, Line
 from qdl_klayout_extension.core.geometries import rectangle_coords, circle_coords, arc_coords
 from qdl_klayout_extension.errors import ShapePointCountError, ShapePointAngleError, ShapeEdgeLengthError
@@ -50,24 +51,29 @@ class Shape:
 
     It provides definitions of various geometric properties of the shape coordinates, such as edge centers, edge angles
     to the y-axis, edge lines and adjacent edge angles.
+    It also provides methods for transforming the shape coordinates (and not other initializing parameters!),
+    such as translation, rotation and scaling.
     Additionally, it provides the contain_point method, great for checking whether a point or set of points are inside
     or outside the shape. This method needs to be implemented by the subclass.
     """
 
     _size: int | None = None
 
-    def __init__(self, coords: CoordinatesList):
+    def __init__(self, coords: CoordinatesList, **kwargs):
         """
         Parameters
         ----------
         coords : CoordinatesList
             List of coordinates.
+        kwargs
+            Additional keyword arguments for the subclasses.
         """
 
         # if not coords.is_sorted:  # Might not work well with all types of shapes.
         #     coords.sort_clockwise()
 
         self._coords: CoordinatesList = coords
+        self._set_re_init_kwargs(kwargs)
         self.__post_init__()
         self._check_all()
 
@@ -84,6 +90,14 @@ class Shape:
 
         if self._size is None:
             self._size = len(self._coords)
+
+    def _set_re_init_kwargs(self, kwargs):
+        """
+        Helper method to set the re-initialization keyword arguments.
+        These are used in case the user wants to transform the shape.
+        In that case the transformation should change the coordinate properties, but not any other initial properties.
+        """
+        self._re_init_kwargs = kwargs
 
     def _check_all(self):
         """ Helper method to call all check methods. """
@@ -147,6 +161,180 @@ class Shape:
     def point_angles(self):
         """ List of angles between adjacent edges in the polygon in user-defined units. """
         return self._point_angles
+
+    @dispatch(object)
+    def get_translated(self, coords: Tuple | Coordinates | Sequence | "CoordinatesList"):
+        """
+        Translate the Shape coordinates by given values in Coordinates.
+
+        Parameters
+        ----------
+        coords : Tuple | Coordinates | Sequence | "CoordinatesList"
+            The distance to translate the CoordinatesList.
+
+        Returns
+        -------
+        Shape
+            The translated shape.
+        """
+        coords = self.coords.get_translated(coords)
+        return self.__class__(coords, **self._re_init_kwargs)
+
+    @dispatch(object, object)
+    def get_translated(self, x_coords: multi_num_ext, y_coords: multi_num_ext):
+        """
+        Translate the Shape coordinates by given x and y values.
+
+        Parameters
+        ----------
+        x_coords : int | float | pint.Quantity | Sequence[int | float | pint.Quantity]
+            The x distance to translate the CoordinatesList in user units.
+            If a list, it must be the same size as the CoordinateList to perform element-wise translation
+        y_coords : int | float | pint.Quantity | Sequence[int | float | pint.Quantity]
+            The y distance to translate the CoordinatesList in user units.
+            If a list, it must be the same size as the CoordinateList to perform element-wise translation
+
+        Returns
+        -------
+        Shape
+            The translated Shape.
+        """
+        coords = self.coords.get_translated(x_coords, y_coords)
+        return self.__class__(coords, **self._re_init_kwargs)
+
+    def get_transformed(self, trans_matrix: np.ndarray):
+        """
+        Transform the shape coordinates using the given transformation matrix.
+
+        Parameters
+        ----------
+        trans_matrix : np.ndarray
+            The transformation matrix.
+
+        Returns
+        -------
+        Shape
+            The transformed shape.
+        """
+        coords = self.coords.get_transformed(trans_matrix)
+        return self.__class__(coords, **self._re_init_kwargs)
+
+    def get_rotated(self, angle: num_ext, counterclockwise=True):
+        """
+        Rotate the shape coordinates by a given angle around the origin.
+
+        Parameters
+        ----------
+        angle : int | float | pint.Quantity
+            The angle to rotate by in degrees.
+        counterclockwise : bool, optional
+            If True (default), rotate counterclockwise. Otherwise, rotate clockwise.
+
+        Returns
+        -------
+        Shape
+            The rotated shape.
+        """
+        coords = self.coords.get_rotated(angle, counterclockwise)
+        return self.__class__(coords, **self._re_init_kwargs)
+
+    def get_stretched(self, x_stretch: num, y_stretch: num):
+        """
+        Stretch (enlarge or compress) the shape coordinates by given x and y factors.
+
+        Parameters
+        ----------
+        x_stretch : int | float
+            The factor to stretch the x-coordinates by.
+        y_stretch : int | float
+            The factor to stretch the y-coordinates by.
+
+        Returns
+        -------
+        Shape
+            The stretched shape coordinates.
+        """
+        coords = self.coords.get_stretched(x_stretch, y_stretch)
+        return self.__class__(coords, **self._re_init_kwargs)
+
+    def get_squeezed(self, squeeze_value: num):
+        """
+        Squeeze the shape coordinates by given factor. Squeezing conserves the shape's area.
+
+        Parameters
+        ----------
+        squeeze_value : int | float
+            The factor to squeeze the coordinates by.
+
+        Returns
+        -------
+        Shape
+            The squeezed shape.
+        """
+        coords = self.coords.get_squeezed(squeeze_value)
+        return self.__class__(coords, **self._re_init_kwargs)
+
+    @dispatch(object)
+    def get_reflected(self, coords: Tuple | Coordinates | Sequence | "CoordinatesList"):
+        """
+        Reflect the shape coordinates across a line defined by the given coordinates (lx, ly) and the origin (0, 0).
+
+        Parameters
+        ----------
+        coords : Tuple | Coordinates | Sequence | "CoordinatesList"
+            The coordinates that define the reflection line.
+
+        Returns
+        -------
+        Shape
+            The reflected shape.
+        """
+        coords = self.coords.get_reflected(coords)
+        return self.__class__(coords, **self._re_init_kwargs)
+
+    @dispatch(object, object)
+    def get_reflected(self, x_coords: multi_num_ext, y_coords: multi_num_ext):
+        """
+        Reflect the shape coordinates across a line defined by the given coordinates (lx, ly) and the origin (0, 0).
+
+        Parameters
+        ----------
+        x_coords : Tuple | Coordinates | Sequence | "CoordinatesList"
+            The x coordinates in user units that define the reflection line.
+        y_coords : Tuple | Coordinates | Sequence | "CoordinatesList"
+            The y coordinates in user units that define the reflection line.
+
+        Returns
+        -------
+        Shape
+            The reflected shape.
+        """
+        coords = self.coords.get_reflected(x_coords, y_coords)
+        return self.__class__(coords, **self._re_init_kwargs)
+
+    def get_reflected_x(self):
+        """
+        Reflect the shape coordinates across the x-axis.
+
+        Returns
+        -------
+        Shape
+            The reflected shape.
+        """
+        coords = self.coords.get_reflected_x()
+        return self.__class__(coords, **self._re_init_kwargs)
+
+    def get_reflected_y(self):
+        """
+        Reflect the shape coordinates across the y-axis.
+
+        Returns
+        -------
+        Shape
+            The reflected shape.
+        """
+        coords = self.coords.get_reflected_x()
+        return self.__class__(coords, **self._re_init_kwargs)
 
     def contains_point(self, point: Coordinates):
         """
@@ -506,6 +694,7 @@ class SimplePath(Shape):
     It defines a path as a list of coordinates that represent the vertices of the path in order.
     The path coordinates must be sorted appropriate. Most of the time, using the sort_clockwise() method of the
     coord class with a properly specified ref_point will ensure that the path will be visualized properly.
+    SimplePath transformations only transform the path coordinates, not the width or end caps.
 
     The SimplePath class serves as a foundation for more specialized polygon classes, such as the RingPath and ArcPath
     classes, which inherit from it and provide additional functionality specific to those shapes.
@@ -528,39 +717,58 @@ class SimplePath(Shape):
             The boolean value that indicates whether the end caps are rounded or not. Default is False.
         """
 
-        self._width: Qty = qty_in_uu(width) if isinstance(width, Qty) else v_in_uu(width)
+        self._width_uu: Qty = qty_in_uu(width) if isinstance(width, Qty) else v_in_uu(width)
         self._rounded_end_caps: bool = rounded_end_caps
         if self._rounded_end_caps:
-            end_cap_width = dbu2ulu(ulu2dbu(self._width / 2))
+            end_cap_width = dbu2ulu(ulu2dbu(self._width_uu / 2))
             # The caps must be half the width, so, to avoid digitization issues, we slightly change the width definition
-            self._width = end_cap_width * 2
-            self._initial_end_cap = end_cap_width
-            self._final_end_cap = end_cap_width
+            self._width_uu = end_cap_width * 2
+            self._initial_end_cap_uu = end_cap_width
+            self._final_end_cap_uu = end_cap_width
         else:
-            self._initial_end_cap = initial_end_cap
-            self._final_end_cap = final_end_cap
+            self._initial_end_cap_uu = qty_in_uu(initial_end_cap) if isinstance(initial_end_cap, Qty) \
+                else v_in_uu(initial_end_cap)
+            self._final_end_cap_uu = qty_in_uu(final_end_cap) if isinstance(final_end_cap, Qty) \
+                else v_in_uu(final_end_cap)
 
-        super().__init__(coords)
+        kwargs = {'width': self.width_uu, 'initial_end_cap': self.initial_end_cap_uu,
+                  'final_end_cap': self.final_end_cap_uu, 'rounded_end_caps': self.rounded_end_cap}
+        super().__init__(coords, **kwargs)
 
     def __post_init__(self):
-        self._klayout_path: pya.Path = pya.Path(self.coords.klayout_points, self.width, self.initial_end_cap,
-                                                self.final_end_cap, self.rounded_end_cap)
+        self._klayout_path: pya.Path = pya.Path(self.coords.klayout_points, self.width_dbu, self.initial_end_cap_dbu,
+                                                self.final_end_cap_dbu, self.rounded_end_cap)
         super().__post_init__()
 
     @property
-    def width(self) -> Qty:
-        """ The width of the path. """
-        return self._width
+    def width_uu(self) -> Qty:
+        """ The width of the path in user units. """
+        return self._width_uu
 
     @property
-    def initial_end_cap(self) -> Qty:
-        """ The extent of the initial end cap. """
-        return self._initial_end_cap
+    def initial_end_cap_uu(self) -> Qty:
+        """ The extent of the initial end cap in user units. """
+        return self._initial_end_cap_uu
 
     @property
-    def final_end_cap(self) -> Qty:
-        """ The extent of the final end cap. """
-        return self._final_end_cap
+    def final_end_cap_uu(self) -> Qty:
+        """ The extent of the final end cap in user units. """
+        return self._final_end_cap_uu
+
+    @property
+    def width_dbu(self) -> Qty:
+        """ The width of the path in database units. """
+        return ulu2dbu(self._width_uu)
+
+    @property
+    def initial_end_cap_dbu(self) -> Qty:
+        """ The extent of the initial end cap in database units. """
+        return ulu2dbu(self._initial_end_cap_uu)
+
+    @property
+    def final_end_cap_dbu(self) -> Qty:
+        """ The extent of the final end cap in database units. """
+        return ulu2dbu(self._final_end_cap_uu)
 
     @property
     def rounded_end_cap(self) -> bool:
@@ -576,6 +784,37 @@ class SimplePath(Shape):
     def klayout_path(self) -> pya.Path:
         """ KLayout Path object representing the path vertices. """
         return self._klayout_path
+
+    def get_end_cap_coords(self) -> Tuple[Coordinates, Coordinates]:
+        """
+        Get the coordinates of the initial and final end caps.
+        The coordinates of the initial and final end caps are calculated by finding the first and last coordinates
+        of the path, and then adding the width to each of them.
+
+        Returns
+        -------
+        Tuple[Coordinates, Coordinates]
+            The coordinates of the initial and final end caps.
+        """
+
+        x = self.coords.x_uu
+        y = self.coords.y_uu
+        width_init = self.initial_end_cap_uu
+        width_final = self.final_end_cap_uu
+
+        dx_init = x[1] - x[0]
+        dy_init = y[1] - y[0]
+        length_init = np.sqrt(dx_init ** 2 + dy_init ** 2)
+        x_init = x[0] - width_init * dx_init / length_init
+        y_init = y[0] - width_init * dy_init / length_init
+
+        dx_final = x[-1] - x[-2]
+        dy_final = y[-1] - y[-2]
+        length_final = np.sqrt(dx_final ** 2 + dy_final ** 2)
+        x_final = x[-1] + width_final * dx_final / length_final
+        y_final = y[-1] + width_final * dy_final / length_final
+
+        return Coordinates(x_init, y_init), Coordinates(x_final, y_final)
 
     def contains_point(self, point: Coordinates):
         """
@@ -600,7 +839,7 @@ class SimplePath(Shape):
         edge_lines = self.edge_lines
         line_point_distances = Qty.from_list([line.distance_from_point(point) for line in edge_lines])
 
-        if not any(line_point_distances <= self.width / 2):
+        if not any(line_point_distances <= self.width_uu / 2):
             return False
 
         # TODO: check if the point is within the edge_line limits.
