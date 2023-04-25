@@ -1,5 +1,16 @@
 # Change Log
 
+- 4/25/2023; v0.1.3.0: Fixed some rotational sorting bugs.
+  - Added a visualization method `plot_shape()` to plot any type of shape, regardless of its nature.
+  - Modified `sort_rotationally()` in `utils` to use a `starting_angle` as the origin of sorted angles. 
+    In order to use the starting angle, we need to shift all angles with the new `utils` method `shift_angles()`.
+  - Added `is_sort_rotationally()` in `utils` to make sorting checks faster and more accurate. 
+  - Updated `CoordinatesList` to use the new sorting methods. Added a `rotational_sort_starting_angle` parameter to 
+    accommodate these new methods.
+  - Updated `arc_coords` and `circle_coords` in `geometries` to follow the updated coordinates definition.
+  - Updated `ArcPath` and `RingPath` for the same reason.
+  - Added an example `example_4_concentric_shapes` on circles, rings and arcs.
+
 - 4/24/2023; v0.1.2.0: Visualization updates.
   - Restructured visualizations:
     - Removed `plot_coords` and replaced with `plot_polygon` and `plot_path` that use `SimplePolygon` and `SimplePath`

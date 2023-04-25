@@ -14,7 +14,8 @@ from qdl_klayout_extension.errors import XYLengthError, OperationTypeError
 from qdl_klayout_extension.transformations import translate, rotate, transform, stretch, squeeze, reflect, reflect_x, \
     reflect_y
 from qdl_klayout_extension.utils import v_in_uu, qty_in_uu, ulu2dbu, find_centroid, sort_rotationally, \
-    line_intersection, line_segment_length, point_line_segment_distance
+    line_intersection, line_segment_length, point_line_segment_distance, cartesian_to_polar_from_reference_point, \
+    is_sorted_rotationally
 
 
 def get_coords(coords: Tuple | "Coordinates" | Sequence | "CoordinatesList") -> Tuple[Qty | None, Qty | None]:
@@ -77,6 +78,10 @@ class Coordinates:
         """
         self._x_uu: Qty = qty_in_uu(x) if isinstance(x, Qty) else v_in_uu(x)
         self._y_uu: Qty = qty_in_uu(y) if isinstance(y, Qty) else v_in_uu(y)
+
+        self.__post_init__()
+
+    def __post_init__(self):
         self._klayout_point = None if np.isnan(self.x_uu) or np.isnan(self.y_uu) else pya.Point(self.x_dbu, self.y_dbu)
         self._klayout_vector = None if np.isnan(self.x_uu) or np.isnan(self.y_uu) \
             else pya.Vector(self.x_dbu, self.y_dbu)
@@ -470,8 +475,9 @@ class CoordinatesList:
         Y-coordinates of the CoordinatesList, by default None.
     """
 
-    @dispatch(object, ref_point=Coordinates)
-    def __init__(self, coords: Sequence[Coordinates], ref_point: Coordinates = Coordinates(np.nan, np.nan)):
+    @dispatch(object, ref_point=Coordinates, starting_angle=object)
+    def __init__(self, coords: Sequence[Coordinates], ref_point: Coordinates = Coordinates(np.nan, np.nan),
+                 starting_angle: num_ext | None = None):
         """
         Initialize CoordinatesList with a list of Coordinates.
 
@@ -482,6 +488,8 @@ class CoordinatesList:
         ref_point : Coordinates, optional
             Reference point for the CoordinatesList. It is used for rotational sorting purposes and defaults to the
             coordinates' centroid point.
+        starting_angle: int | float | pint.Quantity | None, optional
+            Starting angle for rotational sorting. Defaults to angle of first Coordinates element.
         """
 
         self._coords: List[Coordinates] = list(coords)
@@ -490,11 +498,12 @@ class CoordinatesList:
         self._y_uu = Qty.from_list([coord.y_uu for coord in self._coords])
 
         self._ref_point = ref_point
+        self._rotational_sort_starting_angle = starting_angle
         self.__post_init__()
 
-    @dispatch(object, object, ref_point=Coordinates)
+    @dispatch(object, object, ref_point=Coordinates, starting_angle=object)
     def __init__(self, x: Sequence[num_ext] | Qty, y: Sequence[num_ext] | Qty,
-                 ref_point: Coordinates = Coordinates(np.nan, np.nan)):
+                 ref_point: Coordinates = Coordinates(np.nan, np.nan), starting_angle: num_ext | None = None):
         """
         Initialize CoordinatesList with X and Y coordinates.
 
@@ -507,6 +516,8 @@ class CoordinatesList:
         ref_point : Coordinates, optional
             Reference point for the CoordinatesList. It is used for rotational sorting purposes and defaults to the
             coordinates' centroid point.
+        starting_angle: int | float | pint.Quantity | None, optional
+            Starting angle for rotational sorting. Defaults to angle of first Coordinates element.
         """
 
         x, y = self._are_inputs_valid(x, y)
@@ -517,10 +528,19 @@ class CoordinatesList:
         self._coords: List[Coordinates] = [Coordinates(self._x_uu[i], self._y_uu[i]) for i in range(len(x))]
 
         self._ref_point = ref_point
+        self._rotational_sort_starting_angle = starting_angle
         self.__post_init__()
 
     def __post_init__(self):
         self._ref_point = self.get_centroid() if self._ref_point == Coordinates(np.nan, np.nan) else self._ref_point
+        if self._rotational_sort_starting_angle is None:
+            _, self._rotational_sort_starting_angle = cartesian_to_polar_from_reference_point(
+                self.x_uu[0], self.y_uu[0], self.ref_point.x_uu, self.ref_point.y_uu)
+
+        self._rotational_sort_starting_angle = qty_in_uu(self._rotational_sort_starting_angle) \
+            if isinstance(self._rotational_sort_starting_angle, Qty) \
+            else v_in_uu(self._rotational_sort_starting_angle, 'angle')
+
         self._is_sorted = self._check_sorted()
         self._klayout_points = [pya.Point(x, y) for x, y in self.in_dbu]
         self._klayout_vectors = [pya.Vector(x, y) for x, y in self.in_dbu]
@@ -562,20 +582,12 @@ class CoordinatesList:
         Returns
         -------
         int
-            -1 if sorted clockwise, 1 if sorted counterclockwise, and 0 if not sorted.
+            -1 if sorted clockwise.
+            1 if sorted counterclockwise.
+            0 if not sorted.
         """
-
-        x_sorted, y_sorted = sort_rotationally(self.x_uu, self.y_uu, xref=self.ref_point.x_uu, yref=self.ref_point.y_uu)
-
-        if all(self._x_uu == x_sorted):
-            return -1
-
-        x_sorted, y_sorted = sort_rotationally(self.x_uu, self.y_uu, counterclockwise=True, xref=self.ref_point.x_uu,
-                                               yref=self.ref_point.y_uu)
-        if all(self._x_uu == x_sorted):
-            return 1
-
-        return 0
+        return is_sorted_rotationally(self.x_uu, self.y_uu, xref=self.ref_point.x_uu, yref=self.ref_point.y_uu,
+                                      start_angle=self._rotational_sort_starting_angle)
 
     @property
     def coords_list(self) -> List[Coordinates]:
@@ -622,6 +634,10 @@ class CoordinatesList:
         self._ref_point = ref_point
 
     @property
+    def rotational_sort_starting_angle(self):
+        return self._rotational_sort_starting_angle
+
+    @property
     def klayout_points(self) -> List[pya.Point]:
         """ A list of KLayout Point objects representing the CoordinatesList. """
         return self._klayout_points
@@ -636,35 +652,63 @@ class CoordinatesList:
         """ Returns 0 if not sorted, -1 if clockwise, 1 if counterclockwise. """
         return self._is_sorted
 
-    def sort_clockwise(self, ref_point: Coordinates | None = None):
+    def sort_rotationally(self, ref_point: Coordinates | None = None, starting_angle: num_ext | None = None,
+                          counterclockwise=True):
+        """
+        Sorts the coordinates of the polygon in (counter)clockwise order with respect to the reference point.
+        Does not sort if is already sorted in the same direction.
+
+        Parameters
+        ----------
+        ref_point : Coordinates or None, optional
+            The reference point to sort the polygon around. If None, uses the current reference point.
+        starting_angle: int | float | pint.Quantity | None, optional
+            The starting angle of the rotation. If None, uses the current starting angle.
+        counterclockwise: bool, optional
+            If True, sort in counterclockwise order, else clockwise. Defaults to True.
+        """
+        if counterclockwise and self.is_sorted == 1:
+            return
+        if not counterclockwise and self.is_sorted == -1:
+            return
+
+        xref = self.ref_point.x_uu if ref_point is None else ref_point.x_uu
+        yref = self.ref_point.y_uu if ref_point is None else ref_point.y_uu
+        starting_angle = starting_angle if starting_angle is not None else self._rotational_sort_starting_angle
+        starting_angle = qty_in_uu(starting_angle) if isinstance(starting_angle, Qty) else \
+            v_in_uu(starting_angle, 'angle')
+
+        x_sorted, y_sorted = sort_rotationally(self.x_uu, self.y_uu, counterclockwise=counterclockwise,
+                                               xref=xref, yref=yref, start_angle=starting_angle)
+        self.__init__(x_sorted, y_sorted, ref_point=Coordinates(xref, yref))
+
+    def sort_clockwise(self, ref_point: Coordinates | None = None, starting_angle: num_ext | None = None):
         """
         Sorts the coordinates of the polygon in clockwise order with respect to the reference point.
+        Does not sort if is already sorted in the same direction.
 
         Parameters
         ----------
         ref_point : Coordinates or None, optional
             The reference point to sort the polygon around. If None, uses the current reference point.
+        starting_angle: int | float | pint.Quantity | None, optional
+            The starting angle of the rotation. If None, uses the current starting angle.
         """
+        self.sort_rotationally(ref_point, starting_angle, counterclockwise=False)
 
-        xref = self.ref_point.x_uu if ref_point is None else ref_point.x_uu
-        yref = self.ref_point.y_uu if ref_point is None else ref_point.y_uu
-        x_sorted, y_sorted = sort_rotationally(self.x_uu, self.y_uu, xref=xref, yref=yref)
-        self.__init__(x_sorted, y_sorted, ref_point=Coordinates(xref, yref))
-
-    def sort_counterclockwise(self, ref_point: Coordinates | None = None):
+    def sort_counterclockwise(self, ref_point: Coordinates | None = None, starting_angle: num_ext | None = None):
         """
         Sorts the coordinates of the polygon in counterclockwise order with respect to the reference point.
+        Does not sort if is already sorted in the same direction.
 
         Parameters
         ----------
         ref_point : Coordinates or None, optional
             The reference point to sort the polygon around. If None, uses the current reference point.
+        starting_angle: int | float | pint.Quantity | None, optional
+            The starting angle of the rotation. If None, uses the current starting angle.
         """
-        xref = self.ref_point.x_uu if ref_point is None else ref_point.x_uu
-        yref = self.ref_point.y_uu if ref_point is None else ref_point.y_uu
-
-        x_sorted, y_sorted = sort_rotationally(self.x_uu, self.y_uu, counterclockwise=True, xref=xref, yref=yref)
-        self.__init__(x_sorted, y_sorted, ref_point=Coordinates(xref, yref))
+        self.sort_rotationally(ref_point, starting_angle, counterclockwise=True)
 
     def get_edge_centers(self) -> "CoordinatesList":
         """

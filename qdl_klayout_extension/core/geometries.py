@@ -35,13 +35,15 @@ def rectangle_coords(width: num_ext, length: num_ext) -> CoordinatesList:
     y_shape = [- half_length, - half_length, half_length, half_length]
 
     coords = CoordinatesList(x_shape, y_shape)
-    coords.sort_clockwise()
+    coords.sort_counterclockwise()
     return coords
 
 
 def circle_coords(radius: num_ext, num_points: int) -> CoordinatesList:
     """
     Return the coordinates of a circle centered at (0, 0) with the given radius.
+    In order to define a circle, we make sure that there is a small overlap between start and end,
+    so that the circle does not stay accidentally open.
 
     Parameters
     ----------
@@ -55,20 +57,20 @@ def circle_coords(radius: num_ext, num_points: int) -> CoordinatesList:
     CoordinatesList
         A `CoordinatesList` object containing the x- and y-coordinates of the circle vertices.
     """
-    angles = np.linspace(-np.pi, np.pi, num_points)
+    angles = np.linspace(-np.pi, np.pi, num_points + 1)
+    angles = np.append(angles, angles[1] + 2 * np.pi)
     x_shape = radius * np.cos(angles)
     y_shape = radius * np.sin(angles)
 
     coords = CoordinatesList(x_shape, y_shape)
-    coords.sort_clockwise()
+
     return coords
 
 
-# TODO: Fix sorting issue with start and end angles.
-def arc_coords(radius: num_ext, start_angle: num_ext, end_angle: num_ext, num_points: int) -> CoordinatesList:
+def arc_coords(radius: num_ext, start_angle: num_ext, angle_range: num_ext, num_points: int) -> CoordinatesList:
     """
-    Return the coordinates of an arc centered at (0, 0) with the given radius, start and end angles, and number of
-    points. Angle 0 deg is parallel to the y-axis. Rotation is counterclockwise
+    Return the coordinates of an arc centered at (0, 0) with the given radius, start angle, angle range, and number of
+    points. Angle 0 deg is parallel to the positive x-axis. Rotation is counterclockwise.
 
     Parameters
     ----------
@@ -76,8 +78,8 @@ def arc_coords(radius: num_ext, start_angle: num_ext, end_angle: num_ext, num_po
         The radius of the arc.
     start_angle : int | float | pint.Quantity
         The start angle of the arc.
-    end_angle : int | float | pint.Quantity
-        The end angle of the arc.
+    angle_range : int | float | pint.Quantity
+        The angle range of the arc
     num_points : int
         The number of points to use to approximate the arc.
 
@@ -86,14 +88,20 @@ def arc_coords(radius: num_ext, start_angle: num_ext, end_angle: num_ext, num_po
     CoordinatesList
         A `CoordinatesList` object containing the x- and y-coordinates of the arc vertices.
     """
-    start_angle = qty_in_uu(start_angle) if isinstance(start_angle, Qty) else v_in_uu(start_angle, 'angle')
-    end_angle = qty_in_uu(end_angle) if isinstance(end_angle, Qty) else v_in_uu(end_angle, 'angle')
 
-    angles = np.linspace(start_angle.to('rad').m, end_angle.to('rad').m, num_points)
+    start_angle = qty_in_uu(start_angle) if isinstance(start_angle, Qty) else v_in_uu(start_angle, 'angle')
+    angle_range = qty_in_uu(angle_range) if isinstance(angle_range, Qty) else v_in_uu(angle_range, 'angle')
+    start_angle = start_angle.to('rad')
+    angle_range = angle_range.to('rad')
+    end_angle = start_angle + angle_range
+
+    if angle_range.m >= 2 * np.pi:  # If it is more than a full circle, returns full circle.
+        return circle_coords(radius, num_points)
+
+    angles = np.linspace(start_angle.m, end_angle.m, num_points)
     x_shape = radius * np.cos(angles)
     y_shape = radius * np.sin(angles)
 
     coords = CoordinatesList(x_shape, y_shape)
-    coords.sort_clockwise()
     return coords
 

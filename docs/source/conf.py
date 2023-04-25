@@ -50,7 +50,7 @@ extensions = [
     'autoapi.extension',  # pip install sphinx-autoapi easier than autodoc
     'myst_parser',  # for md support. pip install -U myst-parser
     'sphinx.ext.githubpages',  # to publish on GitHub Pages
-    'sphinx.ext.linkcode',  # to add source to github page!
+    # 'sphinx.ext.linkcode',  # to add source to github page!
     'sphinx.ext.viewcode',  # to see source code on the API reference
 ]
 

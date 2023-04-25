@@ -204,6 +204,37 @@ def plot_path(path: SimplePath, edge_kwargs: dict | None = None, fill_kwargs: di
     ax.set_aspect('equal')
 
 
+def plot_shape(shape: Shape | np.ndarray[Shape] | List[List[Shape]], edge_kwargs: dict | None = None,
+               fill_kwargs: dict | None = None, units='uu'):
+    """
+    Plot the coordinates of a shape using matplotlib.pyplot. Different classes of Shapes will be plotted differently.
+
+    Parameters
+    ----------
+    shape : shape: Shape | np.ndarray[Shape] | List[List[Shape]]
+        A shape to be plotted.
+        If an array, it must be a 2D array of the same size as the pattern.
+    edge_kwargs : dict or None, optional
+        Keyword arguments for the edge of the shape, by default None.
+    fill_kwargs : dict or None, optional
+        Keyword arguments for the fill of the shape, by default None.
+    units : str, optional
+        The units of the coordinates, can be either 'uu' or 'dbu', by default 'uu'.
+
+    Raises
+    ------
+    ValueError
+        If the input units are not 'uu' or 'dbu'.
+    """
+
+    if isinstance(shape, SimplePath):
+        plot_path(shape, edge_kwargs, fill_kwargs, units)
+    elif isinstance(shape, SimplePolygon):
+        plot_polygon(shape, edge_kwargs, fill_kwargs, units)
+    else:
+        warnings.warn(f"Shape {shape}, of type {type(shape)} is not recognized. Nothing will be plotted.")
+
+
 def plot_pattern(pattern: Pattern, shape: Shape | np.ndarray[Shape] | List[List[Shape]],
                  edge_kwargs: dict | None = None,
                  fill_kwargs: dict | None = None, units='uu'):
@@ -247,9 +278,4 @@ def plot_pattern(pattern: Pattern, shape: Shape | np.ndarray[Shape] | List[List[
             pattern_coords = pattern_column[j]
             sp = shapes_column[j]
             translated_shape = sp.get_translated(pattern_coords)
-            if isinstance(shape, SimplePath):
-                plot_path(translated_shape, edge_kwargs, fill_kwargs, units)
-            elif isinstance(shape, SimplePolygon):
-                plot_polygon(translated_shape, edge_kwargs, fill_kwargs, units)
-            else:
-                warnings.warn(f"Shape {shape}, of type {type(shape)} is not recognized. Nothing will be plotted.")
+            plot_shape(translated_shape, edge_kwargs, fill_kwargs, units)

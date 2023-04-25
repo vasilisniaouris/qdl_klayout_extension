@@ -5,6 +5,8 @@ user and database units (See `constants` for more).
 """
 
 import numpy as np
+
+from collections import deque
 from pint import Quantity as Qty
 from typing import List, Sequence, Tuple
 
@@ -62,6 +64,8 @@ def qty_in_uu(qty: multi_qty) -> multi_qty:
     """
 
     physical_type = ', '.join([dim[1:-1] for dim in list(qty.units.dimensionality.keys())])
+    if physical_type == '' and qty.units in ['degree', 'radian']:
+        physical_type = 'angle'
     if physical_type in user_units.keys():
         return qty.to(user_units[physical_type])
     else:
@@ -191,19 +195,21 @@ def cartesian_to_polar(x: num_ext, y: num_ext) -> Tuple[num_ext, num_ext]:
     return radius, angle
 
 
-def cartesian_to_polar_from_reference_point(x: Sequence, y: Sequence,
+def cartesian_to_polar_from_reference_point(x: Sequence | num_ext, y: Sequence | num_ext,
                                             xref: num_ext | None = None, yref: num_ext | None = None):
     """
     Converts multiple Cartesian coordinates to polar coordinates, centered at the centroid.
 
     Parameters
     ----------
-    x : Sequence[int | float | pint.Quantity]
+    x: Sequence[int | float | pint.Quantity] | int | float | pint.Quantity
         x-coordinate of the points.
-    y : Sequence[int | float | pint.Quantity]
+    y: Sequence[int | float | pint.Quantity] | int | float | pint.Quantity
         y-coordinate of the points.
-    xref
-    yref
+    xref: int | float | pint.Quantity
+        The x-coordinate of the reference point for the converting to polar coordinates.
+    yref: int | float | pint.Quantity
+        The y-coordinate of the reference point for the converting to polar coordinates.
 
     Returns
     -------
@@ -218,17 +224,16 @@ def cartesian_to_polar_from_reference_point(x: Sequence, y: Sequence,
     if xref is None:
         xref, yref = find_centroid(x, y)
 
-    x_centered = [xp - xref for xp in x]
-    y_centered = [yp - yref for yp in y]
+    x_centered = [xp - xref for xp in x] if isinstance(x, Sequence) else x - xref
+    y_centered = [yp - yref for yp in y] if isinstance(y, Sequence) else y - yref
     radius, angle = cartesian_to_polar(x_centered, y_centered)
 
     return radius, angle
 
 
-# TODO: Use start_angle to define rotational sorting. Then define it in coordinates class. Then use it for circles.
 def sort_rotationally(x: Sequence[num_ext] | Qty, y: Sequence[num_ext] | Qty,
                       counterclockwise=False, xref: num_ext | None = None, yref: num_ext | None = None,
-                      start_angle: num_ext = 0) -> \
+                      start_angle: num_ext | None = None) -> \
         Tuple[Sequence[num_ext], Sequence[num_ext]]:
     """
     Sorts coordinates `x` and `y` in a counterclockwise or clockwise direction about their centroid.
@@ -245,6 +250,8 @@ def sort_rotationally(x: Sequence[num_ext] | Qty, y: Sequence[num_ext] | Qty,
         The x-coordinate of the reference point for the converting to polar coordinates.
     yref: int | float | pint.Quantity
         The y-coordinate of the reference point for the converting to polar coordinates.
+    start_angle: int | float | pint.Quantity | None
+        The angle to start sorting coordinates. Defaults to None.
 
     Returns
     -------
@@ -257,16 +264,104 @@ def sort_rotationally(x: Sequence[num_ext] | Qty, y: Sequence[num_ext] | Qty,
         If the length of x and y sequences do not match.
     """
 
-    radius, angle = cartesian_to_polar_from_reference_point(x, y, xref, yref)
+    radii, angles = cartesian_to_polar_from_reference_point(x, y, xref, yref)
+    angles = shift_angles(Qty(angles, 'rad'), start_angle)
 
-    sorting_list = [(xp, yp, a, r) for xp, yp, a, r in zip(x, y, angle, radius)]
-    sorted_coords = sorted(sorting_list, key=lambda tpl: (tpl[2], tpl[3]), reverse=counterclockwise)
+    sorting_list = [(xp, yp, a, r) for xp, yp, a, r in zip(x, y, angles, radii)]
+    sorted_coords = sorted(sorting_list, key=lambda tpl: (tpl[2], tpl[3]), reverse=(not counterclockwise))
     x_sorted, y_sorted, _, _ = map(list, zip(*sorted_coords))
 
     x_sorted = Qty.from_list(x_sorted) if isinstance(x_sorted[0], Qty) else np.array(x_sorted)
     y_sorted = Qty.from_list(y_sorted) if isinstance(y_sorted[0], Qty) else np.array(y_sorted)
 
     return x_sorted, y_sorted
+
+
+def shift_angles(angles: multi_num_ext, start_angle: num_ext) -> Qty:
+    """
+    Shifts the given angles so that they start at the given start_angle.
+
+    Parameters
+    ----------
+    angles : Sequence[int | float | pint.Quantity]
+        The angles of the points.
+    start_angle: int | float | pint.Quantity
+        The angle to start sorting coordinates.
+
+    Returns
+    -------
+    Sequence[int | float | pint.Quantity]
+        The shifted angles.
+    """
+
+    angles = Qty.from_list(angles).to('rad').m if isinstance(angles[0], Qty) else v_in_uu(angles, 'angle').to('rad').m
+
+    if start_angle is None:
+        start_angle = angles[0]
+
+    start_angle = start_angle.to('rad').m if isinstance(start_angle, Qty) else v_in_uu(start_angle, 'angle').to('rad').m
+    start_angle = start_angle % (2 * np.pi)
+
+    angles[angles < 0] += 2 * np.pi
+    angles -= start_angle
+    angles[angles < 0] += 2 * np.pi
+
+    return Qty(angles, 'rad')
+
+
+def is_sorted_rotationally(x: Sequence[num_ext] | Qty, y: Sequence[num_ext] | Qty,
+                           xref: num_ext | None = None, yref: num_ext | None = None,
+                           start_angle: num_ext | None = None):
+    """
+    Checks if the given x and y coordinates are sorted in a counterclockwise or clockwise direction.
+    To check this, we employ a method where we rotate the list of angles by one element at a time, and
+    try to see if these angles monotonically increase or decrease. If none of the rotations provide a monotonically
+    ordered list, then the list is not sorted rotationally.
+
+    Providing a starting angle helps make this process faster, since the for loop for the list rotation happen
+    fewer times.
+
+    Parameters
+    ----------
+    x : Sequence[int | float | pint.Quantity]
+        x-coordinate of the points.
+    y : Sequence[int | float | pint.Quantity]
+        y-coordinate of the points.
+    xref: int | float | pint.Quantity
+        The x-coordinate of the reference point for the converting to polar coordinates.
+    yref: int | float | pint.Quantity
+        The y-coordinate of the reference point for the converting to polar coordinates.
+    start_angle: int | float | pint.Quantity | None
+        The angle to start sorting coordinates. Defaults to None.
+    Returns
+    -------
+    int
+        -1 if the radii and angles are sorted in a clockwise direction.
+        0 if the radii and angles are not sorted.
+        1 if the radii and angles are sorted in a counterclockwise direction.
+    """
+
+    radii, angles = cartesian_to_polar_from_reference_point(x, y, xref, yref)
+
+    if start_angle is not None:
+        angles = shift_angles(angles, start_angle)
+
+    angles = np.around(angles, 13)
+
+    # We find all the possible iterations of angles and check if they are sorted.
+    # This alleviates us from the pain of dealing with 0-360 extrema.
+    original_angles = angles
+    for i in range(len(original_angles)):
+        shifted_angles = deque(original_angles)
+        shifted_angles.rotate(-i)
+        angles = type(original_angles)(shifted_angles)
+
+        if all((angles[i], radii[i]) >= (angles[i-1], radii[i-1]) for i in range(1, len(angles))):
+            return 1  # counterclockwise
+        elif all((angles[i], radii[i]) <= (angles[i-1], radii[i-1]) for i in range(1, len(angles))):
+            return -1  # clockwise
+
+    return 0  # if nothing works, the list is not sorted.
 
 
 def line_intersection(c11: Tuple[num_ext, num_ext], c12: Tuple[num_ext, num_ext],

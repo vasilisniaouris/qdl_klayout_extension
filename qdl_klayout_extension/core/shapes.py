@@ -1,8 +1,7 @@
 """
 This module contains classes that help create various KLayout.Polygon shapes easily.
 """
-
-
+import warnings
 from typing import Tuple, Sequence, List
 
 import numpy as np
@@ -656,6 +655,13 @@ class SimpleCircle(SimplePolygon):
     The SimpleCircle class is a subclass of the SimplePolygon class that defines a simple circle.
     The from_center() method constructs a SimpleCircle instance from the parameters that define the circle.
     The reference point of this shape is the center of the circle.
+
+    Warning
+    -------
+    Τhe SimpleCircle.from_center() is designed to provide you with overlapping coordinates, to alleviate edge issues.
+    Since the is_sorted() method of the CoordinatesList class can only see if 1 period is sorted, it can not tell if
+    there are more than one period in a given coordinate list.
+    For similar reasons behind sort_rotationally(), trying to re-sort a SimpleCircle will yield a non-overlapped circle!
     """
 
     @classmethod
@@ -684,7 +690,9 @@ class SimpleCircle(SimplePolygon):
         coords = circle_coords(radius, num_points)
         coords = coords.get_translated(center)
 
-        return cls(coords)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # To catch the sorting warning
+            return cls(coords)
 
 
 class SimplePath(Shape):
@@ -854,6 +862,16 @@ class RingPath(SimplePath):
     The RingPath class is a subclass of the SimplePath class that defines a ring with a given width.
     The from_center() method constructs a SimplePath instance from the parameters that define the circle.
     The reference point of this shape is the center of the circle.
+
+    Warning
+    -------
+    The ring path will yield a non-sorted warning for the edge and line calculations. Ignore it.
+    The is_sorted() method of the CoordinatesList class can only see if 1 period is sorted,
+    and
+    Τhe RingPath.from_center() is designed to provide you with overlapping coordinates, to alleviate edge issues.
+    Since the is_sorted() method of the CoordinatesList class can only see if 1 period is sorted, it can not tell if
+    there are more than one period in a given coordinate list.
+    For similar reasons behind sort_rotationally(), trying to re-sort a RingPath will yield a non-overlapped ring!
     """
 
     @classmethod
@@ -884,7 +902,9 @@ class RingPath(SimplePath):
         coords = circle_coords(radius, num_points)
         coords = coords.get_translated(center)
 
-        return cls(coords, width)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # To catch the sorting warning
+            return cls(coords, width)
 
 
 class ArcPath(SimplePath):
@@ -897,9 +917,10 @@ class ArcPath(SimplePath):
     @classmethod
     def from_center(cls, radius: num_ext, width: num_ext, num_points: int = 100,
                     center: Coordinates | Tuple[num_ext, num_ext] = Coordinates(0, 0),
-                    start_angle: num_ext = 0, end_angle: num_ext = 360):
+                    start_angle: num_ext = 0, angle_range: num_ext = Qty(90, 'deg')):
         """
         Constructs an ArcPath instance from the radius of the arc and the number of points.
+        If the angle range is greater than a full circle, it returns a RingPath instead.
 
         Parameters:
         -----------
@@ -913,19 +934,24 @@ class ArcPath(SimplePath):
             The center of the arc. Default is Coordinates(0, 0).
         start_angle: int | float | pint.Quantity, optional
             The starting angle of the arc. Default is 0.
-        end_angle: int | float | pint.Quantity, optional
-            The ending angle of the arc. Default is 360.
+        angle_range: int | float | pint.Quantity, optional
+            The  angle range of the arc. Default is 90 degrees.
 
         Returns:
         --------
-        ArcPath
+        ArcPath | RingPath
             An ArcPath object constructed from the provided parameters.
+            A RingPath object is constructed if the angle range is greater than a full circle.
         """
+
+        ar = qty_in_uu(angle_range) if isinstance(angle_range, Qty) else v_in_uu(angle_range, 'angle')
+        if ar.to('deg').m >= 360:
+            return RingPath.from_center(radius, width, num_points, center)
+
         if isinstance(center, Tuple):
             center = Coordinates(*center)
 
-        coords = arc_coords(radius, start_angle, end_angle, num_points)
+        coords = arc_coords(radius, start_angle, angle_range, num_points)
         coords = coords.get_translated(center)
 
         return cls(coords, width)
-
